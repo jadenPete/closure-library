@@ -840,7 +840,15 @@ goog.require = function(namespace) {
     // If the object already exists we do not need to do anything.
     if (goog.isProvided_(namespace)) {
       if (goog.isInModuleLoader_()) {
-        return goog.module.getInternal_(namespace);
+        const exports = goog.module.getInternal_(namespace);
+
+        /*
+         * For some of Closure's built-in modules, `__hhmrDependents` isn't getting added.
+         * We believe it's because they aren't loaded with `goog.loadModule`.
+         */
+        exports.__hhmrDependents?.push(goog.moduleLoaderState_.moduleName);
+
+        return exports;
       }
     } else if (goog.ENABLE_DEBUG_LOADER) {
       var moduleLoaderState = goog.moduleLoaderState_;
@@ -1103,6 +1111,36 @@ goog.workaroundSafari10EvalBug = function(moduleDef) {
       '})();\n';
 };
 
+goog.reloadUnmodifiedModule = function(moduleName) {
+  const oldModule = goog.loadedModules_[moduleName];
+
+  delete goog.loadedModules_[moduleName];
+
+  goog.loadModule(oldModule.exports.__hhmrSource);
+
+  const newModule = goog.loadedModules_[moduleName]
+  const oldModuleDependents = oldModule.exports.__hhmrDependents;
+
+  // In case anyone has saved a reference to the previous module
+  Object.assign(oldModule, newModule);
+
+  for (const dependent of oldModuleDependents) {
+    goog.reloadUnmodifiedModule(dependent);
+  }
+};
+
+goog.reloadModule = function(moduleName, moduleDef) {
+  const module = goog.loadedModules_[moduleName];
+
+  if (module == undefined) {
+    throw new Error(`${moduleName} is not loaded!`);
+  }
+
+  module.exports.__hhmrSource = moduleDef;
+
+  goog.reloadUnmodifiedModule(moduleName);
+}
+
 
 /**
  * @param {function(?):?|string} moduleDef The module definition.
@@ -1134,6 +1172,10 @@ goog.loadModule = function(moduleDef) {
     }
 
     var moduleName = goog.moduleLoaderState_.moduleName;
+
+    exports.__hhmrSource = moduleDef;
+    exports.__hhmrDependents = [];
+
     if (typeof moduleName === 'string' && moduleName) {
       // Don't seal legacy namespaces as they may be used as a parent of
       // another namespace
@@ -1142,7 +1184,7 @@ goog.loadModule = function(moduleDef) {
       } else if (
           goog.SEAL_MODULE_EXPORTS && Object.seal &&
           typeof exports == 'object' && exports != null) {
-        Object.seal(exports);
+        // Object.seal(exports);
       }
 
       var data = {
