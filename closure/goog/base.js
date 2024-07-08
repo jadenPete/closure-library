@@ -1111,7 +1111,12 @@ goog.workaroundSafari10EvalBug = function(moduleDef) {
       '})();\n';
 };
 
-goog.reloadUnmodifiedModule = function(moduleName) {
+goog.reloadUnmodifiedModule = function(moduleName, reloaded = new Set()) {
+  if (reloaded.has(moduleName)) {
+    return;
+  }
+  reloaded.add(moduleName);
+
   const oldModule = goog.loadedModules_[moduleName];
 
   delete goog.loadedModules_[moduleName];
@@ -1125,7 +1130,7 @@ goog.reloadUnmodifiedModule = function(moduleName) {
   Object.assign(oldModule, newModule);
 
   for (const dependent of oldModuleDependents) {
-    goog.reloadUnmodifiedModule(dependent);
+    goog.reloadUnmodifiedModule(dependent, reloaded);
   }
 };
 
