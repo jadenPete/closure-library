@@ -1111,15 +1111,7 @@ goog.workaroundSafari10EvalBug = function(moduleDef) {
       '})();\n';
 };
 
-goog.reloadModule = function(moduleName, moduleDef) {
-  const module = goog.loadedModules_[moduleName];
-
-  if (module == undefined) {
-    throw new Error(`${moduleName} is not loaded!`);
-  }
-
-  module.exports.__hhmrSource = moduleDef;
-
+goog.reloadModules = function(modules) {
   let deps = new Set();
   function recurse(module, i = 1) {
     if (deps.has(module)) {
@@ -1137,7 +1129,12 @@ goog.reloadModule = function(moduleName, moduleDef) {
     });
   }
 
-  recurse(module);
+  modules.forEach(({moduleName, moduleDef}) => {
+    const module = goog.loadedModules_[moduleName];
+    module.exports.__hhmrSource = moduleDef;
+    
+    recurse(module);
+  });
 
   const toReload = [...deps.values()].sort((m1, m2) => {
     return m1.exports.hhmrDepth - m2.exports.hhmrDepth;
