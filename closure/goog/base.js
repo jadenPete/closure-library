@@ -1111,29 +1111,6 @@ goog.workaroundSafari10EvalBug = function(moduleDef) {
       '})();\n';
 };
 
-goog.reloadUnmodifiedModule = function(moduleName, reloaded = new Set()) {
-  if (reloaded.has(moduleName)) {
-    return;
-  }
-  reloaded.add(moduleName);
-
-  const oldModule = goog.loadedModules_[moduleName];
-
-  delete goog.loadedModules_[moduleName];
-
-  goog.loadModule(oldModule.exports.__hhmrSource);
-
-  const newModule = goog.loadedModules_[moduleName]
-  const oldModuleDependents = oldModule.exports.__hhmrDependents;
-
-  // In case anyone has saved a reference to the previous module
-  Object.assign(oldModule, newModule);
-
-  for (const dependent of oldModuleDependents) {
-    goog.reloadUnmodifiedModule(dependent, reloaded);
-  }
-};
-
 goog.reloadModule = function(moduleName, moduleDef) {
   const module = goog.loadedModules_[moduleName];
 
@@ -1143,7 +1120,41 @@ goog.reloadModule = function(moduleName, moduleDef) {
 
   module.exports.__hhmrSource = moduleDef;
 
-  goog.reloadUnmodifiedModule(moduleName);
+  let deps = new Set();
+  function recurse(module, i = 1) {
+    if (deps.has(module)) {
+      if (i <= (module.exports.hhmrDepth || 0)) {
+        return;
+      }
+    }
+
+    deps.add(module);
+    module.exports.hhmrDepth = i;
+
+    module.exports.__hhmrDependents.forEach((dep) => {
+      const module = goog.loadedModules_[dep];
+      recurse(module, i+1);
+    });
+  }
+
+  recurse(module);
+
+  const toReload = [...deps.values()].sort((m1, m2) => {
+    return m1.exports.hhmrDepth - m2.exports.hhmrDepth;
+  });
+
+  toReload.forEach(oldModule => {
+    const oldModuleName = oldModule.exports.__hhmrModuleName;
+    delete goog.loadedModules_[oldModuleName];
+  
+    goog.loadModule(oldModule.exports.__hhmrSource);
+  
+    const newModule = goog.loadedModules_[oldModuleName]
+    newModule.exports.hhmrDepth = 0;
+  
+    // In case anyone has saved a reference to the previous module
+    Object.assign(oldModule, newModule);
+  });
 }
 
 
@@ -1178,6 +1189,7 @@ goog.loadModule = function(moduleDef) {
 
     var moduleName = goog.moduleLoaderState_.moduleName;
 
+    exports.__hhmrModuleName = moduleName;
     exports.__hhmrSource = moduleDef;
     exports.__hhmrDependents = [];
 
