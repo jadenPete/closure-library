@@ -1129,11 +1129,13 @@ goog.reloadModules = function(modules) {
     });
   }
 
-  modules.forEach(({moduleName, moduleDef}) => {
-    const module = goog.loadedModules_[moduleName];
-    module.exports.__hhmrSource = moduleDef;
-    
-    recurse(module);
+  modules.forEach(({ModuleName, ModuleContent}) => {
+    const module = goog.loadedModules_[ModuleName];
+
+    if (module) {
+      module.exports.__hhmrSource = ModuleContent;
+      recurse(module);
+    }
   });
 
   const toReload = [...deps.values()].sort((m1, m2) => {
