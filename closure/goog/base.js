@@ -1174,6 +1174,9 @@ goog.loadModule = function(moduleDef) {
       type: goog.ModuleType.GOOG
     };
     var exports;
+    if (typeof moduleDef === 'string') {
+      moduleDef = goog.compileModule(moduleDef);
+    }
     if (goog.isFunction(moduleDef)) {
       exports = moduleDef.call(undefined, {});
     } else if (typeof moduleDef === 'string') {
@@ -1229,6 +1232,13 @@ goog.loadModuleFromSource_ = /** @type {function(string):?} */ (function() {
   eval(arguments[0]);
   return exports;
 });
+
+goog.compileModule = function(moduleDef) {
+  return Function(`'use strict';
+  var exports = {};
+  ${moduleDef};
+  return exports;`);
+}
 
 
 /**
